@@ -3,17 +3,17 @@
  * Used in semantic player so far (could be used to smoothen dymo parameters)
  * @constructor
  */
-function Ramp() {
+export class Ramp {
 
-	var intervalID;
-	var delta;
-	var currentValue = 0;
+	private intervalID;
+	private delta;
+	private currentValue = 0;
 
-	this.setValue = function(value) {
+	setValue(value) {
 		currentValue = value;
 	}
 
-	this.startOrUpdate = function(targetValue, duration, frequency, callback) {
+	startOrUpdate(targetValue, duration, frequency, callback) {
 		if (duration > frequency) {
 			clearInterval(intervalID);
 			delta = (targetValue-currentValue)/(duration/frequency);

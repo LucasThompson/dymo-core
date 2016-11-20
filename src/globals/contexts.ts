@@ -1,4 +1,4 @@
-var DYMO_CONTEXT = {
+export const DYMO_CONTEXT = {
 	"@context": {
 		"@base": "http://tiny.cc/dymo-context/",
 		"xsd": "http://www.w3.org/2001/XMLSchema#",
@@ -126,7 +126,7 @@ var DYMO_CONTEXT = {
 	}
 }
 
-var DYMO_SIMPLE_CONTEXT = {
+export const DYMO_SIMPLE_CONTEXT = {
 	"@context": {
 		"@base": "http://tiny.cc/dymo-context/",
 		"xsd": "http://www.w3.org/2001/XMLSchema#",

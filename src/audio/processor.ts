@@ -1,22 +1,30 @@
+import { SoundTouch, SimpleFilter } from 'soundtouch-js';
+
 /**
  * Offers some audio processing functions such as time stretching.
  * @constructor
  */
-function AudioProcessor(audioContext) {
-	
-	var BUFFER_SIZE = 1024;
-	
-	this.timeStretch = function(buffer, ratio) {
+export class AudioProcessor {
+
+	private BUFFER_SIZE = 1024;
+
+	private audioContext: AudioContext;
+
+	constructor(audioContext: AudioContext) {
+		this.audioContext = audioContext;
+	}
+
+	timeStretch(buffer, ratio) {
 		var soundTouch = new SoundTouch(buffer.sampleRate);
 		soundTouch.tempo = ratio;
-		var source = createSource(buffer);
+		var source = this.createSource(buffer);
 		var filter = new SimpleFilter(source, soundTouch);
-		var result = audioContext.createBuffer(buffer.numberOfChannels, buffer.length*(1/ratio), buffer.sampleRate);
-		calculateStretched(buffer, result, filter);
+		var result = this.audioContext.createBuffer(buffer.numberOfChannels, buffer.length*(1/ratio), buffer.sampleRate);
+		this.calculateStretched(buffer, result, filter);
 		return result;
 	}
-	
-	function createSource(buffer) {
+
+	private createSource(buffer) {
 		return {
 			extract: function (target, numFrames, position) {
 				var channels = [];
@@ -32,14 +40,14 @@ function AudioProcessor(audioContext) {
 			}
 		};
 	}
-	
-	function calculateStretched(buffer, target, filter) {
+
+	private calculateStretched(buffer, target, filter) {
 		var channels = [];
 		for (var i = 0; i < buffer.numberOfChannels; i++) {
 			channels.push(target.getChannelData(i));
 		}
-		var samples = new Float32Array(BUFFER_SIZE * 2);
-		var framesExtracted = filter.extract(samples, BUFFER_SIZE);
+		var samples = new Float32Array(this.BUFFER_SIZE * 2);
+		var framesExtracted = filter.extract(samples, this.BUFFER_SIZE);
 		var totalFramesExtracted = 0;
 		while (framesExtracted) {
 			for (var i = 0; i < framesExtracted; i++) {
@@ -48,11 +56,11 @@ function AudioProcessor(audioContext) {
 				}
 			}
 			totalFramesExtracted += framesExtracted;
-			framesExtracted = filter.extract(samples, BUFFER_SIZE);
+			framesExtracted = filter.extract(samples, this.BUFFER_SIZE);
 		}
 		return channels;
 	}
-	
+
 	/*node.onaudioprocess = function (e) {
 		var channels = [];
 		for (var i = 0; i < buffer.numberOfChannels; i++) {

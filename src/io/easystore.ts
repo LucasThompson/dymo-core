@@ -1,98 +1,104 @@
+import { Store, Parser, Writer, Util } from 'n3';
+import * as jsonldFactory from 'jsonld';
+
+import { TYPE, FIRST, REST, NIL, RDFS_URI } from '../globals/uris';
+import { flattenArray, intersectArrays } from '../util/arrays';
+import { loadFile } from '../util/files';
+
 /**
- * A graph store based on N3 that easily manages lists, value replacing and observing,
+ * A graph this.store based on N3 that easily manages lists, value replacing and observing,
  * and offers some nice querying functions
  * @constructor
  */
-function EasyStore() {
+export class EasyStore {
 
-	var self = this;
+	private store = Store(null, null);
+	protected jsonld = jsonldFactory();
 
-	var store = N3.Store();
-
-	var valueObservers = {};
-	var typeObservers = {};
+	private valueObservers = {};
+	private typeObservers = {};
 
 
 	///////// OBSERVING FUNCTIONS //////////
 
-	this.addValueObserver = function(subject, predicate, observer) {
-		if (!valueObservers[subject]) {
-			valueObservers[subject] = {};
+	addValueObserver(subject, predicate, observer) {
+		if (!this.valueObservers[subject]) {
+			this.valueObservers[subject] = {};
 		}
-		if (!valueObservers[subject][predicate]) {
-			valueObservers[subject][predicate] = [];
+		if (!this.valueObservers[subject][predicate]) {
+			this.valueObservers[subject][predicate] = [];
 		}
-		valueObservers[subject][predicate].push(observer);
+		this.valueObservers[subject][predicate].push(observer);
 		//notifyObservers(subject, predicate, this.findObjectValue(subject, predicate));
 	}
 
-	this.addTypeObserver = function(type, predicate, observer) {
-		if (!typeObservers[type]) {
-			typeObservers[type] = [];
+	addTypeObserver(type, predicate, observer) {
+		if (!this.typeObservers[type]) {
+			this.typeObservers[type] = [];
 		}
-		typeObservers[type].push(observer);
+		this.typeObservers[type].push(observer);
 	}
 
-	this.removeValueObserver = function(subject, predicate, observer) {
-		if (valueObservers[subject] && valueObservers[subject][predicate]) {
-			var index = valueObservers[subject][predicate].indexOf(observer);
+	removeValueObserver(subject, predicate, observer) {
+		if (this.valueObservers[subject] && this.valueObservers[subject][predicate]) {
+			var index = this.valueObservers[subject][predicate].indexOf(observer);
 			if (index > -1) {
-				valueObservers[subject][predicate].splice(index, 1);
-				cleanUpValueObservers(subject, predicate);
+				this.valueObservers[subject][predicate].splice(index, 1);
+				this.cleanUpValueObservers(subject, predicate);
 			}
 		}
 	}
 
-	function cleanUpValueObservers(subject, predicate) {
-		if (valueObservers[subject] && valueObservers[subject][predicate].length == 0) {
-			delete valueObservers[subject][predicate];
-			if (Object.keys(valueObservers[subject]).length === 0) {
-				delete valueObservers[subject];
+	private cleanUpValueObservers(subject, predicate) {
+		if (this.valueObservers[subject] && this.valueObservers[subject][predicate].length == 0) {
+			delete this.valueObservers[subject][predicate];
+			if (Object.keys(this.valueObservers[subject]).length === 0) {
+				delete this.valueObservers[subject];
 			}
 		}
 	}
 
-	this.removeTypeObserver = function(type, predicate, observer) {
-		if (typeObservers[type]) {
-			var index = typeObservers[type].indexOf(observer);
+	removeTypeObserver(type, predicate, observer) {
+		if (this.typeObservers[type]) {
+			var index = this.typeObservers[type].indexOf(observer);
 			if (index > -1) {
-				typeObservers[type].splice(index, 1);
-				if (typeObservers[type].length == 0) {
-					delete typeObservers[type];
+				this.typeObservers[type].splice(index, 1);
+				if (this.typeObservers[type].length == 0) {
+					delete this.typeObservers[type];
 				}
 			}
 		}
 	}
 
-	this.getValueObservers = function(subject, predicate) {
-		if (valueObservers[subject]) {
-			if (valueObservers[subject][predicate]) {
-				return valueObservers[subject][predicate];
+	getValueObservers(subject, predicate) {
+		if (this.valueObservers[subject]) {
+			if (this.valueObservers[subject][predicate]) {
+				return this.valueObservers[subject][predicate];
 			}
-			return flattenArray(Object.values(valueObservers[subject]));
+			return flattenArray(Object.values(this.valueObservers[subject]));
 		} else if (subject == null && predicate == null) {
-			return flattenArray(Object.keys(valueObservers).map(function(s){return flattenArray(Object.values(valueObservers[s]))}));
+			return flattenArray(Object.keys(this.valueObservers).map(function(s){return flattenArray(Object.values(this.valueObservers[s]))}));
 		}
 		return [];
 	}
 
-	this.getTypeObservers = function(type) {
-		if (typeObservers[type]) {
-			return typeObservers[type];
+	getTypeObservers(type) {
+		if (this.typeObservers[type]) {
+			return this.typeObservers[type];
 		} else if (type == null) {
-			return flattenArray(Object.keys(typeObservers).map(function(t){return typeObservers[t]}));
+			return flattenArray(Object.keys(this.typeObservers).map(function(t){return this.typeObservers[t]}));
 		}
 		return [];
 	}
 
-	function notifyObservers(subject, predicate, value) {
+	private notifyObservers(subject, predicate, value) {
 		var observerList = [];
-		if (valueObservers[subject] && valueObservers[subject][predicate]) {
-			observerList = observerList.concat(valueObservers[subject][predicate]);
+		if (this.valueObservers[subject] && this.valueObservers[subject][predicate]) {
+			observerList = observerList.concat(this.valueObservers[subject][predicate]);
 		}
-		var subjectType = self.findObject(subject, TYPE);
-		if (typeObservers[subjectType]) {
-			observerList = observerList.concat(typeObservers[subjectType]);
+		var subjectType = this.findObject(subject, TYPE);
+		if (this.typeObservers[subjectType]) {
+			observerList = observerList.concat(this.typeObservers[subjectType]);
 		}
 		for (var i = 0; i < observerList.length; i++) {
 			if (observerList[i].observedValueChanged) {
@@ -104,45 +110,45 @@ function EasyStore() {
 
 	///////// ADDING AND REPLACING FUNCTIONS //////////
 
-	this.addTriple = function(subject, predicate, object) {
+	addTriple(subject, predicate, object) {
 		if (subject != null && predicate != null && object != null) {
-			store.addTriple(subject, predicate, object);
+			this.store.addTriple(subject, predicate, object);
 		}
 	}
 
 	/**
-	 * removes the specified triple from the store. if no object specified, removes the first one found
+	 * removes the specified triple from the this.store. if no object specified, removes the first one found
 	 * @param {string=} object (optional)
 	 */
-	this.removeTriple = function(subject, predicate, object) {
+	removeTriple(subject, predicate, object?) {
 		if (!object) {
 			object = this.findObject(subject, predicate);
 		}
-		return store.removeTriple(subject, predicate, object);
+		return this.store.removeTriple(subject, predicate, object);
 	}
 
-	this.createBlankNode = function() {
-		return store.createBlankNode();
+	createBlankNode() {
+		return this.store.createBlankNode();
 	}
 
 	//sets or replaces the object of the given subject and predicate
-	this.setTriple = function(subject, predicate, object) {
+	setTriple(subject, predicate, object) {
 		this.removeTriple(subject, predicate);
 		this.addTriple(subject, predicate, object);
 	}
 
 	//sets or replaces a literal value of the given subject and predicate, value can be a list
-	this.setValue = function(subject, predicate, value) {
+	setValue(subject, predicate, value) {
 		var currentValue = this.findObjectValue(subject, predicate);
 		if (subject && predicate && value != null && value != currentValue && !Number.isNaN(value)) {
 			if (Array.isArray(value)) {
-				value = value.map(function(v){return N3.Util.createLiteral(v)});
+				value = value.map(function(v){return Util.createLiteral(v)});
 				this.removeTriple(subject, predicate);
 				this.addObjectsToList(subject, predicate, value);
 			} else {
-				this.setTriple(subject, predicate, N3.Util.createLiteral(value));
+				this.setTriple(subject, predicate, Util.createLiteral(value));
 			}
-			notifyObservers(subject, predicate, value);
+			this.notifyObservers(subject, predicate, value);
 		}
 	}
 
@@ -152,7 +158,7 @@ function EasyStore() {
 	 * can also be used without subject and predicate, in which case an independent object is added or changed
 	 * @param {string=} valuePredicate (optional)
 	 * @param {string=} value (optional) */
-	this.setObjectValue = function(subject, predicate, objectType, valuePredicate, value) {
+	setObjectValue(subject, predicate, objectType, valuePredicate, value) {
 		var objectUri;
 		if (subject && predicate) {
 			objectUri = this.findObjectOfType(subject, predicate, objectType);
@@ -171,13 +177,13 @@ function EasyStore() {
 	}
 
 	//adds the given object to the list the given subject has under the given predicate, creates the list if none yet
-	this.addObjectToList = function(subject, predicate, object) {
+	addObjectToList(subject, predicate, object) {
 		var listUri = this.findObject(subject, predicate);
 		var newElement = this.createBlankNode();
 		if (!listUri) {
 			this.addTriple(subject, predicate, newElement);
 		} else {
-			var lastElement = getLastElement(listUri);
+			var lastElement = this.getLastElement(listUri);
 			this.removeTriple(lastElement, REST, NIL);
 			this.addTriple(lastElement, REST, newElement);
 		}
@@ -187,7 +193,7 @@ function EasyStore() {
 
 	/** adds all objects in the given array to the list
 	 * @param {Array=} objects (optional) */
-	this.addObjectsToList = function(subject, predicate, objects) {
+	addObjectsToList(subject, predicate, objects) {
 		for (var i = 0, j = objects.length; i < j; i++) {
 			this.addObjectToList(subject, predicate, objects[i]);
 		}
@@ -195,33 +201,33 @@ function EasyStore() {
 
 	//adds the given object to the list the given subject has under the given predicate, creates the list if none yet
 	//returns the object that was there before
-	this.replaceObjectInList = function(subject, predicate, object, index) {
+	replaceObjectInList(subject, predicate, object, index) {
 		var listUri = this.findObject(subject, predicate);
-		var elementAtIndex = getElementAt(listUri, index);
+		var elementAtIndex = this.getElementAt(listUri, index);
 		var previousObject = this.findObject(elementAtIndex, FIRST);
 		this.setTriple(elementAtIndex, FIRST, object);
 		return previousObject;
 	}
 
-	this.removeObjectFromList = function(subject, predicate, index) {
+	removeObjectFromList(subject, predicate, index) {
 		var listUri = this.findObject(subject, predicate);
 		var newElement = this.createBlankNode();
-		var elementBeforeIndex = getElementAt(listUri, index-1);
-		var elementAtIndex = self.findObject(elementBeforeIndex, REST);
-		var elementAfterIndex = self.findObject(elementAtIndex, REST);
+		var elementBeforeIndex = this.getElementAt(listUri, index-1);
+		var elementAtIndex = this.findObject(elementBeforeIndex, REST);
+		var elementAfterIndex = this.findObject(elementAtIndex, REST);
 		this.setTriple(elementBeforeIndex, REST, elementAfterIndex);
 		this.removeTriple(elementAtIndex, FIRST);
 		this.removeTriple(elementAtIndex, REST);
 	}
 
-	//deletes the list with the given uri from the store
-	this.deleteList = function(subject, predicate) {
+	//deletes the list with the given uri from the this.store
+	deleteList(subject, predicate) {
 		var listUri = this.findObject(subject, predicate);
 		if (listUri) {
 			var currentRest = listUri;
 			while (currentRest != NIL) {
 				this.removeTriple(currentRest, FIRST);
-				var nextRest = self.findObject(currentRest, REST);
+				var nextRest = this.findObject(currentRest, REST);
 				this.removeTriple(currentRest, REST);
 				currentRest = nextRest;
 			}
@@ -232,40 +238,40 @@ function EasyStore() {
 
 	///////// QUERYING FUNCTIONS //////////
 
-	//calls regular store.find function
-	this.find = function(subject, predicate, object) {
-		return store.find(subject, predicate, object);
+	//calls regular this.store.find function
+	find(subject, predicate, object) {
+		return this.store.find(subject, predicate, object);
 	}
 
-	//returns the object of the first result found in the store
-	this.findObject = function(subject, predicate) {
+	//returns the object of the first result found in the this.store
+	findObject(subject, predicate) {
 		if (subject && predicate) {
-			var results = store.find(subject, predicate);
+			var results = this.store.find(subject, predicate);
 			if (results.length > 0) {
 				return results[0].object;
 			}
 		}
 	}
 
-	//returns the object of the first result found in the store, or all elements if it is a list
-	this.findObjectOrList = function(subject, predicate) {
-		return getListElementsIfList(this.findObject(subject, predicate));
+	//returns the object of the first result found in the this.store, or all elements if it is a list
+	findObjectOrList(subject, predicate) {
+		return this.getListElementsIfList(this.findObject(subject, predicate));
 	}
 
-	//returns the value of the first object found in the store, or all element values if it is a list
-	this.findObjectValue = function(subject, predicate) {
+	//returns the value of the first object found in the this.store, or all element values if it is a list
+	findObjectValue(subject, predicate) {
 		var object = this.findObjectOrList(subject, predicate);
 		if (object) {
 			if (Array.isArray(object)) {
-				return object.map(getLiteralValue);
+				return object.map(this.getLiteralValue);
 			}
-			return getLiteralValue(object);
+			return this.getLiteralValue(object);
 		}
 	}
 
 	/** returns the first object of the given type it can find under the given subject and predicate
 	 * if subject is omitted, just returns the first object of the given type */
-	this.findObjectOfType = function(subject, predicate, type) {
+	findObjectOfType(subject, predicate, type) {
 		var objectUri;
 		if (!subject) {
 			objectUri = this.findSubject(TYPE, type);
@@ -280,29 +286,29 @@ function EasyStore() {
 		return objectUri;
 	}
 
-	this.findObjectValueOfType = function(subject, predicate, type, valuePredicate) {
+	findObjectValueOfType(subject, predicate, type, valuePredicate) {
 		var objectUri = this.findObjectOfType(subject, predicate, type);
 		return this.findObjectValue(objectUri, valuePredicate);
 	}
 
-	//returns the object uris of all results found in the store, including the list elements if they are lists
-	this.findAllObjects = function(subject, predicate) {
-		var allObjects = store.find(subject, predicate).map(function(t){return t.object;});
-		allObjects = allObjects.map(getListElementsIfList);
+	//returns the object uris of all results found in the this.store, including the list elements if they are lists
+	findAllObjects(subject, predicate) {
+		var allObjects = this.store.find(subject, predicate).map(function(t){return t.object;});
+		allObjects = allObjects.map(this.getListElementsIfList);
 		return flattenArray(allObjects);
 	}
 
-	//returns the object values of all results found in the store, including the list elements if they are lists
-	this.findAllObjectValues = function(subject, predicate) {
-		var values = this.findAllObjects(subject, predicate).filter(N3.Util.isLiteral);
-		return values.map(getLiteralValue);
+	//returns the object values of all results found in the this.store, including the list elements if they are lists
+	findAllObjectValues(subject, predicate) {
+		var values = this.findAllObjects(subject, predicate).filter(Util.isLiteral);
+		return values.map(this.getLiteralValue);
 	}
 
-	this.findAllObjectValuesOfType = function(subject, predicate, valuePredicate) {
+	findAllObjectValuesOfType(subject, predicate, valuePredicate) {
 		var objectValues = [];
 		var objectUris = this.findAllObjects(subject, predicate);
 		for (var i = 0, j = objectUris.length; i < j; i++) {
-			var value = self.findObjectValue(objectUris[i], valuePredicate);
+			var value = this.findObjectValue(objectUris[i], valuePredicate);
 			if (value != null) {
 				objectValues.push(value);
 			}
@@ -310,49 +316,50 @@ function EasyStore() {
 		return objectValues;
 	}
 
-	//returns the uri of the subject of the first result found in the store, object doesn't have to be a uri
-	this.findSubject = function(predicate, object) {
-		var subject = getSubject(predicate, object);
+	//returns the uri of the subject of the first result found in the this.store, object doesn't have to be a uri
+	findSubject(predicate, object) {
+		var subject = this.getSubject(predicate, object);
 		if (!subject) {
 			//try again with literal
-			subject = getSubject(predicate, N3.Util.createLiteral(object));
+			subject = this.getSubject(predicate, Util.createLiteral(object));
 		}
 		return subject;
 	}
 
-	function getSubject(predicate, object) {
-		var results = store.find(null, predicate, object);
+	private getSubject(predicate, object) {
+		var results = this.store.find(null, predicate, object);
 		if (results.length > 0) {
 			return results[0].subject;
 		}
 	}
-	/** returns the subjects of all results found in the store
+
+	/** returns the subjects of all results found in the this.store
 	 * @param {number|string|boolean=} object (optional)
 	 * @suppress {checkTypes} because of Array.from :( */
-	this.findAllSubjects = function(predicate, object) {
-		var results = store.find(null, predicate, object);
+	findAllSubjects(predicate, object): string[] {
+		var results = this.store.find(null, predicate, object);
 		if (results.length == 0) {
-			results = store.find(null, predicate, N3.Util.createLiteral(object));
+			results = this.store.find(null, predicate, Util.createLiteral(object));
 		}
-		return Array.from(new Set(results.map(function(t){return t.subject;})));
+		return Array.from(new Set(<string[]>results.map(t => t.subject)));
 	}
 
-	this.findObjectIndexInList = function(subject, predicate, object) {
+	findObjectIndexInList(subject, predicate, object) {
 		if (subject && predicate) {
-			return getIndexInList(this.findObject(subject, predicate), object);
+			return this.getIndexInList(this.findObject(subject, predicate), object);
 		}
 	}
 
-	this.findObjectInListAt = function(subject, predicate, index) {
+	findObjectInListAt(subject, predicate, index) {
 		if (subject && predicate) {
-			var element = getElementAt(this.findObject(subject, predicate), index);
+			var element = this.getElementAt(this.findObject(subject, predicate), index);
 			if (element) {
-				return self.findObject(element, FIRST);
+				return this.findObject(element, FIRST);
 			}
 		}
 	}
 
-	this.findContainingLists = function(object) {
+	findContainingLists(object) {
 		var subjectUris = [];
 		var predicateUris = [];
 		var listElements = this.findAllSubjects(FIRST, object);
@@ -372,13 +379,13 @@ function EasyStore() {
 
 	/** return all triples about the given uri and its affiliated objects, stops at objects of the given type
 	 *  @param {string=} type (optional) */
-	this.recursiveFindAllTriples = function(uri, type) {
+	recursiveFindAllTriples(uri, type) {
 		//find all triples for given uri
-		var triples = store.find(uri, null, null);
+		var triples = this.store.find(uri, null, null);
 		var subTriples = [];
 		for (var i = triples.length-1; i >= 0; i--) {
 			//remove all triples whose object is of the given type
-			if (type && store.find(triples[i].object, TYPE, type).length > 0) {
+			if (type && this.store.find(triples[i].object, TYPE, type).length > 0) {
 				triples.splice(i, 1);
 			} else {
 				subTriples = subTriples.concat(this.recursiveFindAllTriples(triples[i].object, type));
@@ -389,7 +396,7 @@ function EasyStore() {
 
 	/** removes all triples about the given uri and its affiliated objects, stops at objects of the given type
 	 *  @param {string=} type (optional) */
-	this.recursiveDeleteAllTriples = function(uri, type) {
+	recursiveDeleteAllTriples(uri, type) {
 		var allTriples = this.recursiveFindAllTriples(uri, type);
 		for (var i = 0; i < allTriples.length; i++) {
 			var currenSubject = allTriples[i].subject;
@@ -401,7 +408,7 @@ function EasyStore() {
 		}
 	}
 
-	this.recursiveFindAllSubClasses = function(superclassUri) {
+	recursiveFindAllSubClasses(superclassUri) {
 		var subClasses = this.findAllSubjects(RDFS_URI+"subClassOf", superclassUri);
 		for (var i = 0; i < subClasses.length; i++) {
 			var subsubClasses = this.recursiveFindAllSubClasses(subClasses[i]);
@@ -412,7 +419,7 @@ function EasyStore() {
 		return subClasses;
 	}
 
-	this.isSubclassOf = function(class1, class2) {
+	isSubclassOf(class1, class2) {
 		var superClass = this.findObject(class1, RDFS_URI+"subClassOf");
 		while (superClass) {
 			if (superClass == class2) {
@@ -423,7 +430,7 @@ function EasyStore() {
 		return false;
 	}
 
-	this.isSubtypeOf = function(type1, type2) {
+	isSubtypeOf(type1, type2) {
 		var superType = this.findObject(type1, TYPE);
 		while (superType) {
 			if (superType == type2) {
@@ -435,16 +442,16 @@ function EasyStore() {
 	}
 
 	//returns all elements of a list if the given uri is a list, the given listUri otherwise
-	function getListElementsIfList(listUri) {
+	private getListElementsIfList(listUri) {
 		if (listUri) {
-			var first = self.findObject(listUri, FIRST);
+			var first = this.findObject(listUri, FIRST);
 			if (first) {
 				var objectUris = [];
 				objectUris.push(first);
-				var currentRest = self.findObject(listUri, REST);
+				var currentRest = this.findObject(listUri, REST);
 				while (currentRest != NIL) {
-					objectUris.push(self.findObject(currentRest, FIRST));
-					currentRest = self.findObject(currentRest, REST);
+					objectUris.push(this.findObject(currentRest, FIRST));
+					currentRest = this.findObject(currentRest, REST);
 				}
 				return objectUris;
 			}
@@ -453,21 +460,21 @@ function EasyStore() {
 	}
 
 	//returns the index of the given element in the given list, -1 if not found
-	function getIndexInList(listUri, elementUri) {
+	private getIndexInList(listUri, elementUri) {
 		var index = 0;
 		var currentRest = listUri;
 		while (currentRest != NIL) {
-			if (self.findObject(currentRest, FIRST) == elementUri) {
+			if (this.findObject(currentRest, FIRST) == elementUri) {
 				return index;
 			}
-			currentRest = self.findObject(currentRest, REST);
+			currentRest = this.findObject(currentRest, REST);
 			index++;
 		}
 		return -1;
 	}
 
-	function getLastElement(listUri) {
-		return getElementAt(listUri);
+	private getLastElement(listUri) {
+		return this.getElementAt(listUri);
 	}
 
 	/**
@@ -475,14 +482,14 @@ function EasyStore() {
 	 * returns uri of last element if no index given
 	 * @param {number=} index (optional)
 	 */
-	function getElementAt(listUri, index) {
+	private getElementAt(listUri, index?) {
 		if (listUri) {
 			var currentIndex = 0;
 			var currentRest = listUri;
-			var nextRest = self.findObject(currentRest, REST);
+			var nextRest = this.findObject(currentRest, REST);
 			while (nextRest != NIL && (index == null || currentIndex < index)) {
 				currentRest = nextRest;
-				nextRest = self.findObject(currentRest, REST);
+				nextRest = this.findObject(currentRest, REST);
 				currentIndex++;
 			}
 			if (index == null || currentIndex == index) {
@@ -491,9 +498,9 @@ function EasyStore() {
 		}
 	}
 
-	function getLiteralValue(uri) {
-		var value = N3.Util.getLiteralValue(uri);
-		var type = N3.Util.getLiteralType(uri);
+	private getLiteralValue(uri) {
+		var value = Util.getLiteralValue(uri);
+		var type = Util.getLiteralType(uri);
 		if (type != "http://www.w3.org/2001/XMLSchema#string") {
 			value = Number(value);
 		}
@@ -503,12 +510,12 @@ function EasyStore() {
 
 	///////// LOADING FUNCTIONS //////////
 
-	this.loadData = function(data, isJsonld, callback) {
-		jsonldToNquads(data, isJsonld, function(nquads) {
-			N3.Parser().parse(nquads, function (error, triple, prefixes) {
+	loadData(data, isJsonld, callback) {
+		this.jsonldToNquads(data, isJsonld, function(nquads) {
+			Parser({}).parse(nquads, (error, triple, prefixes) => {
 				//keep streaming triples
 				if (triple) {
-					store.addTriple(triple);
+					this.store.addTriple(triple);
 				//done
 				} else if (callback) {
 					callback();
@@ -517,15 +524,13 @@ function EasyStore() {
 		});
 	}
 
-	this.loadFileIntoStore = function(path, isJsonld, callback) {
-		loadFile(path, function(data) {
-			self.loadData(data, isJsonld, callback);
-		});
+	loadFileIntoStore(path, isJsonld, callback) {
+		loadFile(path, data => this.loadData(data, isJsonld, callback));
 	}
 
-	function jsonldToNquads(data, isJsonld, callback) {
+	private jsonldToNquads(data, isJsonld, callback) {
 		if (isJsonld) {
-			jsonld.toRDF(data, {format: 'application/nquads'}, function(err, nquads) {
+			this.jsonld.toRDF(data, {format: 'application/nquads'}, function(err, nquads) {
 				callback(nquads);
 			});
 		} else {
@@ -536,13 +541,13 @@ function EasyStore() {
 
 	///////// WRITING FUNCTIONS //////////
 
-	this.toRdf = function(callback) {
-		var allTriples = store.find(null, null, null);
+	toRdf(callback) {
+		var allTriples = this.store.find(null, null, null);
 		this.triplesToRdf(allTriples, callback);
 	}
 
-	this.triplesToRdf = function(triples, callback) {
-		var writer = N3.Writer({ format: 'application/nquads' });
+	triplesToRdf(triples, callback) {
+		var writer = Writer({ format: 'application/nquads' }, null);
 		for (var i = 0; i < triples.length; i++) {
 			writer.addTriple(triples[i]);
 		}
@@ -551,8 +556,8 @@ function EasyStore() {
 		});
 	}
 
-	this.logData = function() {
-		var rows = store.find(null).map(function(t){return t.subject +"\n" + t.predicate + "\n" + t.object});
+	logData() {
+		var rows = this.store.find(null).map(function(t){return t.subject +"\n" + t.predicate + "\n" + t.object});
 		for (var i in rows) {
 			console.log(rows[i]);
 		}

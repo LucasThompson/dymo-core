@@ -1,0 +1,8 @@
+{
+  "globalDependencies": {
+    "n3": "registry:dt/n3#0.8.1+20161014193628"
+  },
+  "dependencies": {
+    "jsonld": "registry:npm/jsonld#0.4.0+20161023213320"
+  }
+}

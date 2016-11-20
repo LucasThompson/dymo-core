@@ -1,26 +1,32 @@
+import { Util } from 'n3';
+import async from 'async-es';
+
+import { EasyStore } from './easystore';
+import { intersectArrays } from '../util/arrays';
+import { HAS_SOURCE, HAS_PART, HAS_SIMILAR, HAS_SUCCESSOR, HAS_FEATURE, HAS_PARAMETER, HAS_FUNCTION,
+	VALUE, TYPE, DYMO, CDT, RENDERING, HAS_DYMO, NAME, TO_TARGET, HAS_STANDARD_VALUE, IS_INTEGER,
+	HAS_MAPPING, HAS_RANGE, HAS_NAVIGATOR, NAV_DYMOS, HAS_ARGUMENT, HAS_VARIABLE, HAS_VALUE, HAS_BODY,
+	DOMAIN, RANGE, LEVEL_FEATURE, INDEX_FEATURE, FIRST } from '../globals/uris';
+import { DYMO_CONTEXT, DYMO_SIMPLE_CONTEXT } from '../globals/contexts';
+
 /**
  * A graph store for dymos based on EasyStore.
  * @constructor
  * @extends {EasyStore}
  */
-function DymoStore(callback) {
+export class DymoStore extends EasyStore {
 
-	var self = this;
-
-	EasyStore.call(this);
-
-	var dymoOntologyPath = "http://tiny.cc/dymo-ontology"//"../ontologies/dymo-ontology.n3";//"http://tiny.cc/dymo-ontology";
-	var mobileOntologyPath = "http://tiny.cc/mobile-audio-ontology"//"../ontologies/mobile-audio-ontology.n3";//"http://tiny.cc/mobile-audio-ontology";
-	var dymoContextPath = "http://tiny.cc/dymo-context";
-	var dymoSimpleContextPath = "http://tiny.cc/dymo-context-simple";
-	var dymoBasePaths = {};
-
-	init();
+	private dymoBasePaths = {};
 
 	//creates the store and loads some basic ontology files
-	function init() {
-		self.loadFileIntoStore(dymoOntologyPath, false, function() {
-			self.loadFileIntoStore(mobileOntologyPath, false, function() {
+	constructor(callback) {
+		super();
+		var dymoOntologyPath = "http://tiny.cc/dymo-ontology"//"../ontologies/dymo-ontology.n3";//"http://tiny.cc/dymo-ontology";
+		var mobileOntologyPath = "http://tiny.cc/mobile-audio-ontology"//"../ontologies/mobile-audio-ontology.n3";//"http://tiny.cc/mobile-audio-ontology";
+		var dymoContextPath = "http://tiny.cc/dymo-context";
+		var dymoSimpleContextPath = "http://tiny.cc/dymo-context-simple";
+		this.loadFileIntoStore(dymoOntologyPath, false, function() {
+			this.loadFileIntoStore(mobileOntologyPath, false, function() {
 				if (callback) {
 					callback();
 				}
@@ -28,18 +34,18 @@ function DymoStore(callback) {
 		});
 	}
 
-	this.addBasePath = function(dymoUri, path) {
-		dymoBasePaths[dymoUri] = path;
+	addBasePath(dymoUri, path) {
+		this.dymoBasePaths[dymoUri] = path;
 	}
 
-	this.getBasePath = function(dymoUri) {
-		return recursiveFindInParents([dymoUri], function(uri) {
-			return dymoBasePaths[uri];
+	getBasePath(dymoUri) {
+		return this.recursiveFindInParents([dymoUri], function(uri) {
+			return this.dymoBasePaths[uri];
 		});
 	}
 
 	//depth first search through parents. as soon as the given searchFunction returns something, return it
-	function recursiveFindInParents(dymoUris, searchFunction) {
+	private recursiveFindInParents(dymoUris, searchFunction) {
 		for (var i = 0; i < dymoUris.length; i++) {
 			var currentResult = searchFunction(dymoUris[i]);
 			if (currentResult) {
@@ -47,14 +53,14 @@ function DymoStore(callback) {
 			}
 		}
 		for (var i = 0; i < dymoUris.length; i++) {
-			var currentResult = recursiveFindInParents(self.findParents(dymoUris[i]), searchFunction);
+			var currentResult = this.recursiveFindInParents(this.findParents(dymoUris[i]), searchFunction);
 			if (currentResult) {
 				return currentResult;
 			}
 		}
 	}
 
-	this.getSourcePath = function(dymoUri) {
+	getSourcePath(dymoUri) {
 		var sourcePath = this.findObjectValue(dymoUri, HAS_SOURCE);
 		if (sourcePath) {
 			return this.getBasePath(dymoUri)+sourcePath;
@@ -70,11 +76,11 @@ function DymoStore(callback) {
 		}
 	}
 
-	this.addSpecificParameterObserver = function(parameterUri, observer) {
+	addSpecificParameterObserver(parameterUri, observer) {
 		this.addValueObserver(parameterUri, VALUE, observer);
 	}
 
-	this.addParameterObserver = function(dymoUri, parameterType, observer) {
+	addParameterObserver(dymoUri, parameterType, observer) {
 		if (dymoUri && parameterType) {
 			//add parameter if there is none so far and get uri
 			var parameterUri = this.setParameter(dymoUri, parameterType);
@@ -84,7 +90,7 @@ function DymoStore(callback) {
 		}
 	}
 
-	this.getParameterObservers = function(dymoUri, parameterType) {
+	getParameterObservers(dymoUri, parameterType) {
 		if (dymoUri && parameterType) {
 			var parameterUri = this.findObjectOfType(dymoUri, HAS_PARAMETER, parameterType);
 			if (parameterUri) {
@@ -93,7 +99,7 @@ function DymoStore(callback) {
 		}
 	}
 
-	this.removeParameterObserver = function(dymoUri, parameterType, observer) {
+	removeParameterObserver(dymoUri, parameterType, observer) {
 		if (dymoUri && parameterType) {
 			var parameterUri = this.findObjectOfType(dymoUri, HAS_PARAMETER, parameterType);
 			if (parameterUri) {
@@ -104,46 +110,46 @@ function DymoStore(callback) {
 
 	///////// ADDING FUNCTIONS //////////
 
-	this.addDymo = function(dymoUri, parentUri, partUri, sourcePath, type) {
+	addDymo(dymoUri, parentUri, partUri, sourcePath, type) {
 		this.addTriple(dymoUri, TYPE, DYMO);
 		if (parentUri) {
-			addPart(parentUri, dymoUri);
+			this.addPart(parentUri, dymoUri);
 		}
 		if (partUri) {
-			addPart(dymoUri, partUri);
+			this.addPart(dymoUri, partUri);
 		}
 		if (sourcePath) {
-			this.addTriple(dymoUri, HAS_SOURCE, N3.Util.createLiteral(sourcePath));
+			this.addTriple(dymoUri, HAS_SOURCE, Util.createLiteral(sourcePath));
 		}
 		if (type) {
-			DYMO_STORE.addTriple(dymoUri, CDT, type);
+			this.addTriple(dymoUri, CDT, type);
 		}
 	}
 
-	function addPart(dymoUri, partUri) {
-		self.addObjectToList(dymoUri, HAS_PART, partUri);
+	private addPart(dymoUri, partUri) {
+		this.addObjectToList(dymoUri, HAS_PART, partUri);
 	}
 
-	this.setParts = function(dymoUri, partUris) {
+	setParts(dymoUri, partUris) {
 		this.deleteList(dymoUri, HAS_PART);
 		this.addObjectsToList(dymoUri, HAS_PART, partUris);
 	}
 
-	this.replacePartAt = function(dymoUri, partUri, index) {
+	replacePartAt(dymoUri, partUri, index) {
 		if (dymoUri != partUri) {//avoid circular dymos
 			return this.replaceObjectInList(dymoUri, HAS_PART, partUri, index);
 		}
 	}
 
-	this.addSimilar = function(dymoUri, similarUri) {
+	addSimilar(dymoUri, similarUri) {
 		this.addTriple(dymoUri, HAS_SIMILAR, similarUri);
 	}
 
-	this.addSuccessor = function(dymoUri, successorUri) {
+	addSuccessor(dymoUri, successorUri) {
 		this.addTriple(dymoUri, HAS_SUCCESSOR, successorUri);
 	}
 
-	this.setFeature = function(dymoUri, featureType, value) {
+	setFeature(dymoUri, featureType, value) {
 		return this.setObjectValue(dymoUri, HAS_FEATURE, featureType, VALUE, value);
 	}
 
@@ -151,7 +157,7 @@ function DymoStore(callback) {
 	 * @param {string|number=} value (optional)
 	 * @param {Object=} observer (optional)
 	 */
-	this.addParameter = function(ownerUri, parameterType, value, observer) {
+	addParameter(ownerUri, parameterType, value?, observer?) {
 		this.setParameter(ownerUri, parameterType, value);
 		if (observer) {
 			this.addParameterObserver(ownerUri, parameterType, observer);
@@ -161,10 +167,10 @@ function DymoStore(callback) {
 	/**
 	 * @param {string|number=} value (optional)
 	 */
-	this.setParameter = function(ownerUri, parameterType, value) {
+	setParameter(ownerUri, parameterType, value?) {
 		//initialize in case the parameter doesn't exist yet
 		if (!this.findParameterUri(ownerUri, parameterType) && (value == null || isNaN(value))) {
-			value = this.findObjectValue(parameterType, HAS_STANDARD_VALUE, null);
+			value = this.findObjectValue(parameterType, HAS_STANDARD_VALUE);
 		}
 		//round if integer parameter
 		if (this.findObject(parameterType, IS_INTEGER)) {
@@ -174,21 +180,21 @@ function DymoStore(callback) {
 		return this.setObjectValue(ownerUri, HAS_PARAMETER, parameterType, VALUE, value);
 	}
 
-	this.addControl = function(name, type, uri) {
+	addControl(name, type, uri) {
 		if (!uri) {
 			uri = this.createBlankNode();
 		}
-		this.addTriple(uri, NAME, N3.Util.createLiteral(name));
+		this.addTriple(uri, NAME, Util.createLiteral(name));
 		this.addTriple(uri, TYPE, type);
 		return uri;
 	}
 
-	this.addRendering = function(renderingUri, dymoUri) {
+	addRendering(renderingUri, dymoUri) {
 		this.addTriple(renderingUri, TYPE, RENDERING);
 		this.addTriple(renderingUri, HAS_DYMO, dymoUri);
 	}
 
-	this.addMapping = function(renderingUri, mappingFunction, targetList, targetFunction, rangeUri) {
+	addMapping(renderingUri, mappingFunction, targetList, targetFunction, rangeUri) {
 		var mappingUri = this.createBlankNode();
 		this.addTriple(renderingUri, HAS_MAPPING, mappingUri);
 		this.addTriple(mappingUri, HAS_FUNCTION, mappingFunction);
@@ -203,7 +209,7 @@ function DymoStore(callback) {
 		return mappingUri;
 	}
 
-	this.addNavigator = function(renderingUri, navigatorType, subsetFunctionArgs, subsetFunctionBody) {
+	addNavigator(renderingUri, navigatorType, subsetFunctionArgs, subsetFunctionBody) {
 		var navUri = this.createBlankNode();
 		this.addTriple(renderingUri, HAS_NAVIGATOR, navUri);
 		this.addTriple(navUri, TYPE, navigatorType);
@@ -212,25 +218,23 @@ function DymoStore(callback) {
 		return navUri;
 	}
 
-	this.addFunction = function(args, body) {
+	addFunction(args, body) {
 		var funcUri = this.createBlankNode();
 		var vars = Object.keys(args);
 		for (var i = 0; i < vars.length; i++) {
 			var argUri = this.createBlankNode();
 			this.addTriple(funcUri, HAS_ARGUMENT, argUri);
-			this.addTriple(argUri, HAS_VARIABLE, N3.Util.createLiteral(vars[i]));
+			this.addTriple(argUri, HAS_VARIABLE, Util.createLiteral(vars[i]));
 			this.addTriple(argUri, HAS_VALUE, args[vars[i]]);
 		}
-		this.addTriple(funcUri, HAS_BODY, N3.Util.createLiteral(body));
+		this.addTriple(funcUri, HAS_BODY, Util.createLiteral(body));
 		return funcUri;
 	}
 
-	this.updatePartOrder = function(dymoUri, attributeName) {
+	updatePartOrder(dymoUri, attributeName) {
 		var parts = this.findParts(dymoUri);
 		if (parts.length > 0) {
-			parts.sort(function(p,q) {
-				return self.findAttributeValue(p, attributeName) - self.findAttributeValue(q, attributeName);
-			});
+			parts.sort((p,q) => this.findAttributeValue(p, attributeName) - this.findAttributeValue(q, attributeName));
 			this.setParts(dymoUri, parts);
 		}
 	}
@@ -239,42 +243,42 @@ function DymoStore(callback) {
 	///////// QUERY FUNCTIONS //////////
 
 	//returns an array with all uris of dymos that do not have parents
-	this.findTopDymos = function() {
+	findTopDymos() {
 		var allDymos = this.findAllSubjects(TYPE, DYMO);
-		var allParents = this.findAllSubjects(HAS_PART);
-		var allParts = [].concat.apply([], allParents.map(function(p){return self.findParts(p);}));
+		var allParents = this.findAllSubjects(HAS_PART, null);
+		var allParts = [].concat.apply([], allParents.map(p => this.findParts(p)));
 		return allDymos.filter(function(p) { return allParts.indexOf(p) < 0 });
 	}
 
 	//returns an array with the uris of all parts of the object with the given uri
-	this.findParts = function(dymoUri) {
+	findParts(dymoUri) {
 		//TODO DOESNT WORK WITH LISTS!!!!!
 		return this.findAllObjects(dymoUri, HAS_PART);
 	}
 
-	this.findPartAt = function(dymoUri, index) {
+	findPartAt(dymoUri, index) {
 		return this.findObjectInListAt(dymoUri, HAS_PART, index);
 	}
 
 	//returns an array with the uris of all similars of the object with the given uri
-	this.findSimilars = function(dymoUri) {
+	findSimilars(dymoUri) {
 		//TODO DOESNT WORK WITH LISTS!!!!!
 		return this.findAllObjects(dymoUri, HAS_SIMILAR);
 	}
 
 	//returns an array with the uris of all successors of the object with the given uri
-	this.findSuccessors = function(dymoUri) {
+	findSuccessors(dymoUri) {
 		//TODO DOESNT WORK WITH LISTS!!!!!
 		return this.findAllObjects(dymoUri, HAS_SUCCESSOR);
 	}
 
-	this.findParents = function(dymoUri) {
+	findParents(dymoUri) {
 		var containingLists = this.findContainingLists(dymoUri);
 		return containingLists[0].filter(function(e,i){return containingLists[1][i] == HAS_PART;});
 	}
 
 	//returns an array with the uris of all parts, parts of parts, etc of the object with the given uri
-	this.findAllObjectsInHierarchy = function(dymoUri) {
+	findAllObjectsInHierarchy(dymoUri) {
 		var allObjects = [dymoUri];
 		var parts = this.findParts(dymoUri);
 		for (var i = 0; i < parts.length; i++) {
@@ -283,32 +287,32 @@ function DymoStore(callback) {
 		return allObjects;
 	}
 
-	this.findDymoRelations = function() {
+	findDymoRelations() {
 		var domainUris = this.findAllSubjects(DOMAIN, DYMO);
 		var rangeUris = this.findAllSubjects(RANGE, DYMO);
 		//TODO FIND HAS_PART AUTOMATICALLY..
 		return [HAS_PART].concat(intersectArrays(domainUris, rangeUris));
 	}
 
-	this.findMappings = function(renderingUri) {
+	findMappings(renderingUri) {
 		return this.findAllObjects(renderingUri, HAS_MAPPING);
 	}
 
-	this.findNavigators = function(renderingUri) {
+	findNavigators(renderingUri) {
 		return this.findAllObjects(renderingUri, HAS_NAVIGATOR);
 	}
 
-	this.findFunction = function(uri) {
+	findFunction(uri) {
 		if (uri) {
-			var args = self.findAllObjects(uri, HAS_ARGUMENT);
-			var argVars = args.map(function(a){return self.findObjectValue(a, HAS_VARIABLE)});
-			var argVals = args.map(function(a){return self.findObject(a, HAS_VALUE)});
-			var body = self.findObjectValue(uri, HAS_BODY);
+			var args = this.findAllObjects(uri, HAS_ARGUMENT);
+			var argVars = args.map(a => this.findObjectValue(a, HAS_VARIABLE));
+			var argVals = args.map(a => this.findObject(a, HAS_VALUE));
+			var body = this.findObjectValue(uri, HAS_BODY);
 			return [argVars, argVals, body];
 		}
 	}
 
-	this.findAttributeValue = function(dymoUri, attributeType) {
+	findAttributeValue(dymoUri, attributeType) {
 		var value = this.findParameterValue(dymoUri, attributeType);
 		if (value == null) {
 			value = this.findFeatureValue(dymoUri, attributeType);
@@ -316,7 +320,7 @@ function DymoStore(callback) {
 		return value;
 	}
 
-	this.findFeatureValue = function(dymoUri, featureType) {
+	findFeatureValue(dymoUri, featureType) {
 		if (featureType === LEVEL_FEATURE) {
 			return this.findLevel(dymoUri);
 		} else if (featureType === INDEX_FEATURE) {
@@ -326,19 +330,19 @@ function DymoStore(callback) {
 		}
 	}
 
-	this.findAllFeatureValues = function(dymoUri) {
+	findAllFeatureValues(dymoUri) {
 		return this.findAllObjectValuesOfType(dymoUri, HAS_FEATURE, VALUE)
 	}
 
-	this.findAllNumericFeatureValues = function(dymoUri) {
+	findAllNumericFeatureValues(dymoUri) {
 		return this.findAllFeatureValues(dymoUri).filter(function(v){return !isNaN(v);});
 	}
 
-	this.findParameterValue = function(dymoUri, parameterType) {
+	findParameterValue(dymoUri, parameterType) {
 		return this.findObjectValueOfType(dymoUri, HAS_PARAMETER, parameterType, VALUE);
 	}
 
-	this.findParameterUri = function(ownerUri, parameterType) {
+	findParameterUri(ownerUri, parameterType) {
 		if (ownerUri) {
 			return this.findObjectOfType(ownerUri, HAS_PARAMETER, parameterType);
 		}
@@ -346,13 +350,13 @@ function DymoStore(callback) {
 	}
 
 	//TODO FOR NOW ONLY WORKS WITH SINGLE HIERARCHY..
-	this.findPartIndex = function(dymoUri) {
+	findPartIndex(dymoUri) {
 		var firstParentUri = this.findParents(dymoUri)[0];
 		return this.findObjectIndexInList(firstParentUri, HAS_PART, dymoUri);
 	}
 
 	//TODO FOR NOW ONLY WORKS WITH SINGLE HIERARCHY..
-	this.findLevel = function(dymoUri) {
+	findLevel(dymoUri) {
 		var level = 0;
 		var parent = this.findParents(dymoUri)[0];
 		while (parent) {
@@ -363,7 +367,7 @@ function DymoStore(callback) {
 	}
 
 	//TODO optimize
-	this.findMaxLevel = function() {
+	findMaxLevel() {
 		var allDymos = this.findAllSubjects(TYPE, DYMO);
 		var maxLevel = 0;
 		for (var i = 0; i < allDymos.length; i++) {
@@ -375,33 +379,29 @@ function DymoStore(callback) {
 
 	///////// WRITING FUNCTIONS //////////
 
-	this.toJsonld = function(callback) {
+	toJsonld(callback) {
 		var firstTopDymo = this.findTopDymos()[0];
-		this.toRdf(function(result) {
-			rdfToJsonld(result, firstTopDymo, callback);
-		});
+		this.toRdf(result => this.rdfToJsonld(result, firstTopDymo, callback));
 	}
 
-	function triplesToJsonld(triples, frameId, callback) {
-		self.triplesToRdf(triples, function(result) {
-			rdfToJsonld(result, frameId, callback);
-		});
+	private triplesToJsonld(triples, frameId, callback) {
+		this.triplesToRdf(triples, result => this.rdfToJsonld(result, frameId, callback));
 	}
 
-	function rdfToJsonld(rdf, frameId, callback) {
+	private rdfToJsonld(rdf, frameId, callback) {
 		rdf = rdf.split('_b').join('b'); //rename blank nodes (jsonld.js can't handle the n3.js nomenclature)
-		jsonld.fromRDF(rdf, {format: 'application/nquads'}, function(err, doc) {
-			jsonld.frame(doc, {"@id":frameId}, function(err, framed) {
-				jsonld.compact(framed, DYMO_CONTEXT, function(err, compacted) {
+		this.jsonld.fromRDF(rdf, {format: 'application/nquads'}, function(err, doc) {
+			this.jsonld.frame(doc, {"@id":frameId}, function(err, framed) {
+				this.jsonld.compact(framed, DYMO_CONTEXT, function(err, compacted) {
 					//deal with imperfections of jsonld.js compaction algorithm to make it reeaally nice
-					jsonld.compact(compacted, DYMO_SIMPLE_CONTEXT, function(err, compacted) {
+					this.jsonld.compact(compacted, DYMO_SIMPLE_CONTEXT, function(err, compacted) {
 						//make it even nicer by removing blank nodes
-						removeBlankNodeIds(compacted);
+						this.removeBlankNodeIds(compacted);
 						compacted = JSON.stringify(compacted, null, 2);
 						//compact local uris
-						compacted = compacted.replace(new RegExp(dymoContextPath+'/', 'g'), "");
+						compacted = compacted.replace(new RegExp(this.dymoContextPath+'/', 'g'), "");
 						//put the right context back
-						compacted = compacted.replace(dymoSimpleContextPath, dymoContextPath);
+						compacted = compacted.replace(this.dymoSimpleContextPath, this.dymoContextPath);
 						callback(compacted);
 					});
 				});
@@ -410,42 +410,40 @@ function DymoStore(callback) {
 	}
 
 	//returns a jsonld representation of an object removed from any hierarchy of objects of the same type
-	function toFlatJsonld(uri, callback) {
-		var type = self.findObject(uri, TYPE, null);
-		var triples = self.recursiveFindAllTriples(uri, type);
-		triplesToJsonld(triples, uri, function(result) {
-			callback(null, JSON.parse(result));
-		});
+	private toFlatJsonld(uri, callback) {
+		var type = this.findObject(uri, TYPE);
+		var triples = this.recursiveFindAllTriples(uri, type);
+		this.triplesToJsonld(triples, uri, result => callback(null, JSON.parse(result)));
 	}
 
-	this.toJsonGraph = function(nodeClass, edgeProperty, callback) {
+	toJsonGraph(nodeClass, edgeProperty, callback) {
 		var graph = {"nodes":[], "edges":[]};
 		var nodeMap = {};
 		var nodeUris = this.findAllSubjects(TYPE, nodeClass);
 		var edgeTriples = this.find(null, edgeProperty, null);
-		async.map(nodeUris, toFlatJsonld, function(err, result){
+		async.map(nodeUris, this.toFlatJsonld, function(err, result){
 			graph["nodes"] = result;
 			for (var i = 0; i < nodeUris.length; i++) {
 				nodeMap[nodeUris[i]] = graph["nodes"][i];
 			}
 			graph["edges"] = [];
 			for (var i = 0; i < edgeTriples.length; i++) {
-				if (self.find(edgeTriples[i].object, TYPE, nodeClass).length == 0) {
-					if (self.find(edgeTriples[i].object, FIRST).length > 0) {
+				if (this.find(edgeTriples[i].object, TYPE, nodeClass).length == 0) {
+					if (this.find(edgeTriples[i].object, FIRST).length > 0) {
 						//it's a list!!
-						var objects = self.findObjectOrList(edgeTriples[i].subject, edgeProperty);
-						objects = objects.map(function(t){return createLink(nodeMap[edgeTriples[i].subject], nodeMap[t]);});
+						var objects = this.findObjectOrList(edgeTriples[i].subject, edgeProperty);
+						objects = objects.map(t => this.createLink(nodeMap[edgeTriples[i].subject], nodeMap[t]));
 						graph["edges"] = graph["edges"].concat(objects);
 					}
 				} else {
-					graph["edges"].push(createLink(nodeMap[edgeTriples[i].subject], nodeMap[edgeTriples[i].object]));
+					graph["edges"].push(this.createLink(nodeMap[edgeTriples[i].subject], nodeMap[edgeTriples[i].object]));
 				}
 			}
 			callback(graph);
 		});
 	}
 
-	/*this.toJsonMappingGraph = function(callback) {
+	/*toJsonMappingGraph(callback) {
 		var graph = {"nodes":[], "edges":[]};
 		var nodeMap = {};
 		var nodeUris = [];
@@ -485,21 +483,20 @@ function DymoStore(callback) {
 		});
 	}*/
 
-	function createLink(source, target) {
+	private createLink(source, target) {
 		return {"source":source, "target":target, "value":1};
 	}
 
-	function removeBlankNodeIds(obj) {
+	private removeBlankNodeIds(obj) {
 		if (obj && obj instanceof Object) {
 			for (var key in obj) {
 				if (key == "@id" && obj[key].includes("_:b")) {
 					delete obj[key];
 				} else {
-					removeBlankNodeIds(obj[key]);
+					this.removeBlankNodeIds(obj[key]);
 				}
 			}
 		}
 	}
 
 }
-inheritPrototype(DymoStore, EasyStore);

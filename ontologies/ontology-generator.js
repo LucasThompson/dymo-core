@@ -34,7 +34,7 @@ createMobileAudioOntology("ontologies/mobile-audio-ontology.n3");
 writeContextToFile("ontologies/dymo-context.json", context, contextBase);
 writeContextToFile("ontologies/dymo-context-simple.json", simpleContext, contextBase);
 writeTermDictToFile("src/globals/terms.js")
-writeUrisToFile("src/globals/uris.js");
+writeUrisToFile("src/globals/uris.ts");
 writeContextsToFile("src/globals/contexts.js");
 
 function initWriter(base) {
@@ -363,7 +363,7 @@ function writeUrisToFile(path) {
 		if (value[0] != '[') {
 			value = '"' + value + '"';
 		}
-		urisString += 'var ' + key + ' = ' + value + ';\n';
+		urisString += 'export const ' + key + ': string = ' + value + ';\n';
 	}
 	fs.writeFile(path, urisString, function(err) {
 		console.log("Saved "+ path);
@@ -371,8 +371,8 @@ function writeUrisToFile(path) {
 }
 
 function writeContextsToFile(path) {
-	contextsString = 'var DYMO_CONTEXT = ' + getContextString(context, contextBase) + '\n\n';
-	contextsString += 'var DYMO_SIMPLE_CONTEXT = ' + getContextString(simpleContext, contextBase);
+	contextsString = 'export const DYMO_CONTEXT = ' + getContextString(context, contextBase) + '\n\n';
+	contextsString += 'export const DYMO_SIMPLE_CONTEXT = ' + getContextString(simpleContext, contextBase);
 	fs.writeFile(path, contextsString, function(err) {
 		console.log("Saved "+ path);
 	});
