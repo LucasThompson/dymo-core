@@ -24,6 +24,13 @@ function createAudioContext(): AudioContext {
 	)();
 }
 
+export interface DymoManagerOptions {
+	scheduleAheadTime?: number;
+	fadeLength?: number;
+	optimizedMode?: boolean;
+	reverbFile?: string
+}
+
 /**
  * A class for easy access of all dymo core functionality.
  */
@@ -41,7 +48,14 @@ export class DymoManager {
 	private graphs: JsonGraphSubject[] = [];
 	private attributeInfo: BehaviorSubject<AttributeInfo[]> = new BehaviorSubject([]);
 
-	constructor(audioContext = createAudioContext(), scheduleAheadTime?: number, fadeLength?: number, optimizedMode?: boolean, reverbFile?: string) {
+	constructor(
+		audioContext = createAudioContext(),
+		scheduleAheadTime?: number,
+		fadeLength?: number,
+		optimizedMode?: boolean,
+		reverbFile?: string,
+		options: DymoManagerOptions = {}
+	) {
 		this.store = new DymoStore();
 		this.loader = new DymoLoader(this.store);
 		this.audioBank = new AudioBank(audioContext);
@@ -56,6 +70,27 @@ export class DymoManager {
 			GlobalVars.FADE_LENGTH = fadeLength;
 		}
 		this.reverbFile = reverbFile;
+	}
+
+	static withOptions(
+		options: DymoManagerOptions,
+		audioContext = createAudioContext()
+	): DymoManager {
+		const {
+			scheduleAheadTime = undefined,
+			fadeLength = undefined,
+			optimizedMode = undefined,
+			reverbFile = undefined,
+			...otherOptions
+		} = options || {};
+		return new DymoManager(
+			audioContext,
+			scheduleAheadTime,
+			fadeLength,
+			optimizedMode,
+			reverbFile,
+			otherOptions
+		);
 	}
 
 	init(ontologiesPath?: string): Promise<any> {
